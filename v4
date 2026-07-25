@@ -1664,6 +1664,7 @@ local function CreateSectionTab(secName)
 end
 
 function OpenPrivateChat(targetUsername)
+    leftPlayers[targetUsername] = nil
     local pmSecName = "[PM] " .. targetUsername
     if not chatChannels[pmSecName] then
         CreateSectionTab(pmSecName)
@@ -2262,6 +2263,10 @@ local function PlaySyncedAnimationsLocally(animName)
         end
     end
 end
+
+Players.PlayerAdded:Connect(function(plr)
+    leftPlayers[plr.Name] = nil
+end)
 
 Players.PlayerRemoving:Connect(function(plr)
     if plr == localPlayer then
