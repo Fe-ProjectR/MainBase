@@ -27,7 +27,7 @@ local RankData = {
     Users = {
         [1494561843] = "Founder",
         [9348538] = "Founder",
-        [249660181] = "Obfuscator"
+        [10749501315] = "Obfuscator"
     }
 }
 
