@@ -1,3 +1,158 @@
+local AllowedGames = {
+    [7041939546] = true,
+    [1662219031] = true,
+    [18984776765] = true
+}
+
+if not AllowedGames[game.PlaceId] then
+    local CoreGui = game:GetService("CoreGui")
+    local Players = game:GetService("Players")
+    local MarketplaceService = game:GetService("MarketplaceService")
+    local TweenService = game:GetService("TweenService")
+
+    local warnGui = Instance.new("ScreenGui")
+    warnGui.Name = "ROCONS_WhitelistWarn"
+    
+    pcall(function() warnGui.Parent = CoreGui end)
+    if not warnGui.Parent then 
+        warnGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") 
+    end
+
+    local frame = Instance.new("Frame", warnGui)
+    frame.Size = UDim2.new(0, 340, 0, 250)
+    frame.Position = UDim2.new(0.5, -170, 0.5, -125)
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = Color3.fromRGB(150, 0, 255)
+    stroke.Thickness = 2
+
+    local header = Instance.new("TextLabel", frame)
+    header.Size = UDim2.new(1, 0, 0, 30)
+    header.Position = UDim2.new(0, 0, 0, 10)
+    header.Text = "Not in a Whitelisted Game!"
+    header.Font = Enum.Font.GothamBold
+    header.TextSize = 16
+    header.TextColor3 = Color3.fromRGB(150, 0, 255)
+    header.BackgroundTransparency = 1
+
+    local title = Instance.new("TextLabel", frame)
+    title.Size = UDim2.new(1, -20, 0, 30)
+    title.Position = UDim2.new(0, 10, 0, 145)
+    title.Text = "Loading Games..."
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.BackgroundTransparency = 1
+    title.TextWrapped = true
+
+    local txt = Instance.new("TextLabel", frame)
+    txt.Size = UDim2.new(1, -30, 0, 50)
+    txt.Position = UDim2.new(0, 15, 0, 180)
+    txt.Text = "Join one of the private servers in discord inorder for the script to work."
+    txt.TextColor3 = Color3.fromRGB(180, 180, 180)
+    txt.Font = Enum.Font.Gotham
+    txt.TextSize = 12
+    txt.TextWrapped = true
+    txt.BackgroundTransparency = 1
+
+    task.spawn(function()
+        local whitelistedGameIds = {7041939546, 1662219031, 18984776765}
+        local gameInfoCache = {}
+
+        for _, id in ipairs(whitelistedGameIds) do
+            local success, info = pcall(function()
+                return MarketplaceService:GetProductInfo(id)
+            end)
+            if success then
+                table.insert(gameInfoCache, {
+                    Name = info.Name,
+                    Icon = "rbxassetid://" .. info.IconImageAssetId
+                })
+            end
+        end
+
+        if #gameInfoCache < 3 then
+            title.Text = "Whitelisted Games Unavailable"
+            return
+        end
+
+        local states = {
+            Left = {
+                Position = UDim2.new(0.5, -110, 0, 60),
+                Size = UDim2.new(0, 60, 0, 60),
+                ImageColor3 = Color3.fromRGB(75, 40, 100),
+            },
+            Center = {
+                Position = UDim2.new(0.5, -40, 0, 50),
+                Size = UDim2.new(0, 80, 0, 80),
+                ImageColor3 = Color3.fromRGB(255, 255, 255),
+            },
+            Right = {
+                Position = UDim2.new(0.5, 50, 0, 60),
+                Size = UDim2.new(0, 60, 0, 60),
+                ImageColor3 = Color3.fromRGB(75, 40, 100),
+            }
+        }
+
+        local thumbs = {}
+        for i = 1, 3 do
+            local thumb = Instance.new("ImageLabel", frame)
+            thumb.BackgroundTransparency = 1
+            thumb.Image = gameInfoCache[i].Icon
+            
+            if i == 1 then
+                thumb.Position = states.Center.Position
+                thumb.Size = states.Center.Size
+                thumb.ImageColor3 = states.Center.ImageColor3
+                thumb.ZIndex = 3
+            elseif i == 2 then
+                thumb.Position = states.Right.Position
+                thumb.Size = states.Right.Size
+                thumb.ImageColor3 = states.Right.ImageColor3
+                thumb.ZIndex = 2
+            else
+                thumb.Position = states.Left.Position
+                thumb.Size = states.Left.Size
+                thumb.ImageColor3 = states.Left.ImageColor3
+                thumb.ZIndex = 1
+            end
+            
+            table.insert(thumbs, thumb)
+        end
+
+        local currentIndex = 1
+        local tweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
+
+        title.Text = gameInfoCache[currentIndex].Name
+
+        while warnGui.Parent do
+            task.wait(3.5)
+
+            currentIndex = currentIndex - 1
+            if currentIndex < 1 then currentIndex = 3 end
+
+            local leftIdx = (currentIndex - 2) % 3 + 1
+            local rightIdx = (currentIndex % 3) + 1
+
+            thumbs[currentIndex].ZIndex = 3 
+            thumbs[rightIdx].ZIndex = 2     
+            thumbs[leftIdx].ZIndex = 1      
+
+            TweenService:Create(thumbs[currentIndex], tweenInfo, states.Center):Play()
+            TweenService:Create(thumbs[rightIdx], tweenInfo, states.Right):Play()
+            TweenService:Create(thumbs[leftIdx], tweenInfo, states.Left):Play()
+            
+            TweenService:Create(title, TweenInfo.new(0.3), {TextTransparency = 1}):Play()
+            task.wait(0.3)
+            title.Text = gameInfoCache[currentIndex].Name
+            TweenService:Create(title, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+        end
+    end)
+
+    return 
+end
+
 local LOGO_URL = "https://github.com/Fe-ProjectR/Balls/blob/main/Untitled243_20260721100053.png?raw=true"
 local ANIM_URL = "https://github.com/GUICLOUDS/Neo-s/raw/refs/heads/main/Animad.rbxm"
 local MORPH_URL = "https://github.com/Fe-ProjectR/Balls/raw/refs/heads/main/Morph.rbxm"
@@ -27,7 +182,7 @@ local RankData = {
     Users = {
         [1494561843] = "Founder",
         [9348538] = "Founder",
-        [10749501315] = "Obfuscator"
+        [249660181] = "Obfuscator"
     }
 }
 
