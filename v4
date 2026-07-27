@@ -166,7 +166,7 @@ local EMOTES_FILE = "ROCONS_Emotes_Pack.rbxm"
 local SOUNDS_FILE = "ROCONS_Sounds_Pack.rbxm"
 
 local WORKER_URL = "https://cold-mountain-a4e5.tzpfileofficial.workers.dev"
-local API_KEY = "TZP##(#(#((*11111"
+local API_KEY = "TZPISAGOA39329"
 
 local RankData = {
     GitHubRawURL = "", 
