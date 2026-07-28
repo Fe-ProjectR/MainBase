@@ -181,7 +181,7 @@ local RankData = {
     },
     Users = {
         [1494561843] = "Founder",
-        [9348538] = "Bug Finder 🐞",
+        [9348538] = "Founder",
         [249660181] = "Obfuscator",
         [1840000716] = "Admin",
         [11132901713] = "Artist 🎨",
@@ -1124,14 +1124,6 @@ local function ApplyRankFormatting(rankLbl, rankStr)
                     end
                 end)
             end
-            
-        else
-            rankLbl.TextColor3 = RankData.Colors[rankStr] or Theme.Accent
-        end
-    else
-        rankLbl.Visible = false
-    end
-end
             
         else
             rankLbl.TextColor3 = RankData.Colors[rankStr] or Theme.Accent
