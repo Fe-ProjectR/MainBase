@@ -181,8 +181,13 @@ local RankData = {
     },
     Users = {
         [1494561843] = "Founder",
-        [9348538] = "Founder",
-        [249660181] = "Obfuscator"
+        [9348538] = "Cool 😎",
+        [249660181] = "Obfuscator",
+        [1840000716] = "Admin",
+        [11132901713] = "Artist 🎨",
+        [11259660898] = "Bug Finder 🐞",
+        [8803060305] = "Bug Finder 🐞",
+        [1438557288] = "Artist 🎨"
     }
 }
 
@@ -891,32 +896,236 @@ local spawningBots = {}
 local function ApplyRankFormatting(rankLbl, rankStr)
     if not rankLbl then return end
     
-    if rankStr then
-        rankLbl.Text = rankStr
+    if rankLbl:GetAttribute("AppliedRank") == tostring(rankStr) and (rankLbl:FindFirstChildOfClass("UIGradient") or rankLbl:FindFirstChild("CustomEffect_SideLeft") or not tostring(rankStr):match("Artist|Bone Zone|Obfuscator|Bug Finder|Cool")) then
+        return
+    end
+    rankLbl:SetAttribute("AppliedRank", tostring(rankStr))
+    
+    for _, child in ipairs(rankLbl:GetChildren()) do
+        if child.Name:match("CustomEffect_") or child:IsA("UIGradient") then 
+            child:Destroy() 
+        end
+    end
+    
+    local bbGui = rankLbl:FindFirstAncestorOfClass("BillboardGui")
+    if bbGui then
+        bbGui.Enabled = true
+    end
+
+    local pFrame = rankLbl.Parent
+    if pFrame then
+        for _, child in ipairs(pFrame:GetChildren()) do
+            if child.Name:match("CustomEffect_") then 
+                child:Destroy() 
+            end
+        end
+        
+        local origDisplay = pFrame:FindFirstChild("TextDisplay")
+        if origDisplay then
+            origDisplay.TextTransparency = 0
+        end
+    end
+    
+    local char = rankLbl:FindFirstAncestorOfClass("Model")
+    local head = char and char:FindFirstChild("Head")
+    if not head and bbGui then
+        if bbGui.Adornee and bbGui.Adornee:IsA("BasePart") then
+            head = bbGui.Adornee
+            char = head.Parent
+        elseif bbGui.Parent and bbGui.Parent:IsA("BasePart") then
+            head = bbGui.Parent
+            char = head.Parent
+        end
+    end
+
+    if char then
+        for _, child in ipairs(char:GetChildren()) do
+            if child.Name:match("CustomEffect_") then
+                child:Destroy()
+            end
+        end
+    end
+
+    if rankStr and rankStr ~= "" then
         rankLbl.Visible = true
+        rankLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        rankLbl.Text = rankStr
         
         if rankStr == "Obfuscator" then
-            rankLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+            rankLbl.Text = "Obfuscator"
+            local gradient = Instance.new("UIGradient")
+            gradient.Name = "CustomEffect_ObfuscatorGradient"
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 85, 255)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 85, 255))
+            })
+            gradient.Offset = Vector2.new(-0.6, 0)
+            gradient.Parent = rankLbl
             
-            if not rankLbl:FindFirstChild("ObfuscatorGradient") then
-                local gradient = Instance.new("UIGradient")
-                gradient.Name = "ObfuscatorGradient"
-                gradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 85, 255)),
-                    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 85, 255))
-                })
-                gradient.Offset = Vector2.new(-1, 0)
-                gradient.Parent = rankLbl
-                
-                local tweenInfo = TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1) 
-                local tween = TweenService:Create(gradient, tweenInfo, {Offset = Vector2.new(1, 0)})
-                tween:Play()
+            TweenService:Create(gradient, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {Offset = Vector2.new(0.6, 0)}):Play()
+            
+        elseif rankStr == "Artist 🎨" or rankStr == "Artist" then
+            rankLbl.Text = "Artist 🎨" 
+            
+            local gradient = Instance.new("UIGradient")
+            gradient.Name = "CustomEffect_Rainbow"
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 127, 0)),
+                ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 255, 0)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 0)),
+                ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
+                ColorSequenceKeypoint.new(0.83, Color3.fromRGB(75, 0, 130)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+            })
+            gradient.Offset = Vector2.new(-0.5, 0)
+            gradient.Parent = rankLbl
+            
+            TweenService:Create(gradient, TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {Offset = Vector2.new(0.5, 0)}):Play()
+            
+        elseif rankStr == "Bone Zone 💀" or rankStr == "Bone Zone" then
+            rankLbl.Text = "Bone Zone 💀"
+            
+            local gradient = Instance.new("UIGradient")
+            gradient.Name = "CustomEffect_Gradient"
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 0, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+            })
+            gradient.Offset = Vector2.new(-0.5, 0)
+            gradient.Parent = rankLbl
+            
+            TweenService:Create(gradient, TweenInfo.new(1.5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {Offset = Vector2.new(0.5, 0)}):Play()
+            
+        elseif rankStr == "Bug Finder 🐞" or rankStr == "Bug Finder" then
+            rankLbl.Text = "Bug Finder 🐞"
+            
+            local gradient = Instance.new("UIGradient")
+            gradient.Name = "CustomEffect_Gradient"
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(50, 255, 100)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+            })
+            gradient.Offset = Vector2.new(-0.6, 0)
+            gradient.Parent = rankLbl
+            
+            TweenService:Create(gradient, TweenInfo.new(1.2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {Offset = Vector2.new(0.6, 0)}):Play()
+            
+            task.spawn(function()
+                local bugs = {"🐞", "🐜", "🕷️", "🐛", "🪲", "🦗"}
+                while rankLbl.Parent and rankLbl:GetAttribute("AppliedRank"):match("Bug Finder") do
+                    rankLbl.Text = "Bug Finder " .. bugs[math.random(1, #bugs)]
+                    task.wait(math.random(8, 25) / 10) 
+                end
+            end)
+            
+        elseif rankStr == "Cool 😎" or rankStr == "Cool" then
+            rankLbl.Text = "Cool"
+            rankLbl.TextColor3 = Color3.fromRGB(180, 80, 255) 
+            
+            if bbGui then
+                bbGui.Enabled = false
             end
-        else
-            local oldGradient = rankLbl:FindFirstChild("ObfuscatorGradient")
-            if oldGradient then oldGradient:Destroy() end
             
+            if head and char then
+                local pName = char.Name
+                local pAge = ""
+                local pGender = ""
+                
+                if localPlayer then
+                    pName = localPlayer.DisplayName or localPlayer.Name
+                    if localPlayer:GetAttribute("Age") then pAge = tostring(localPlayer:GetAttribute("Age")) end
+                    if localPlayer:GetAttribute("Gender") then pGender = tostring(localPlayer:GetAttribute("Gender")) end
+                end
+                
+                if pFrame then
+                    for _, child in ipairs(pFrame:GetChildren()) do
+                        if child:IsA("TextLabel") and child.Name ~= rankLbl.Name then
+                            local txt = child.Text
+                            if txt:match("Age") or txt:match("%d+") then
+                                pAge = txt
+                            elseif txt:match("Male") or txt:match("Female") or txt:match("Boy") or txt:match("Girl") then
+                                pGender = txt
+                            end
+                        end
+                    end
+                end
+                
+                local block = Instance.new("Part")
+                block.Name = "CustomEffect_CoolBlock"
+                block.Size = Vector3.new(1.0, 1.0, 1.0)
+                block.Material = Enum.Material.Glass
+                block.Color = Color3.fromRGB(140, 30, 220)
+                block.Reflectance = 0.3
+                block.CanCollide = false
+                block.CanQuery = false
+                block.CanTouch = false
+                block.Massless = true
+                
+                local sparkles = Instance.new("Sparkles")
+                sparkles.Name = "CustomEffect_Sparkles"
+                sparkles.SparkleColor = Color3.fromRGB(200, 100, 255)
+                sparkles.Parent = block
+                
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = Color3.fromRGB(150, 0, 255)
+                highlight.OutlineColor = Color3.fromRGB(220, 150, 255)
+                highlight.OutlineTransparency = 0.1
+                highlight.FillTransparency = 0.6
+                highlight.Parent = block
+                
+                local faceData = {
+                    [Enum.NormalId.Front] = pName,
+                    [Enum.NormalId.Back] = pName,
+                    [Enum.NormalId.Left] = pGender ~= "" and pGender or "N/A",
+                    [Enum.NormalId.Right] = pAge ~= "" and pAge or "N/A"
+                }
+                
+                for face, textContent in pairs(faceData) do
+                    local sg = Instance.new("SurfaceGui")
+                    sg.Name = "CustomEffect_SurfaceGui"
+                    sg.Face = face
+                    sg.CanvasSize = Vector2.new(128, 128)
+                    sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+                    sg.Parent = block
+                    
+                    local faceLbl = Instance.new("TextLabel")
+                    faceLbl.Size = UDim2.new(1, -8, 1, -8)
+                    faceLbl.Position = UDim2.new(0, 4, 0, 4)
+                    faceLbl.BackgroundTransparency = 1
+                    faceLbl.Font = Enum.Font.GothamBold
+                    faceLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    faceLbl.TextScaled = true
+                    faceLbl.Text = textContent
+                    faceLbl.Parent = sg
+                end
+                
+                block.CFrame = head.CFrame * CFrame.new(0, 2.2, 0)
+                block.Parent = char
+                
+                local weld = Instance.new("Weld")
+                weld.Name = "SpinWeld"
+                weld.Part0 = head
+                weld.Part1 = block
+                weld.C0 = CFrame.new(0, 2.2, 0)
+                weld.Parent = block
+                
+                task.spawn(function()
+                    local angleX, angleY, angleZ = 0, 0, 0
+                    while block.Parent do
+                        angleX = (angleX + 1.5) % 360
+                        angleY = (angleY + 2.5) % 360
+                        angleZ = (angleZ + 1.0) % 360
+                        weld.C0 = CFrame.new(0, 2.2, 0) * CFrame.Angles(math.rad(angleX), math.rad(angleY), math.rad(angleZ))
+                        task.wait()
+                    end
+                end)
+            end
+            
+        else
             rankLbl.TextColor3 = RankData.Colors[rankStr] or Theme.Accent
         end
     else
