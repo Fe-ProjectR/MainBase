@@ -1781,33 +1781,59 @@ end
 createBlastUI()
 end
 
--- Firebase Polling to render other players' visuals locally
+-- Firebase Polling to render other players' visuals locally (With Diagnostics)
 task.spawn(function()
     local lastSignals = {}
-    while task.wait(1.5) do -- Poll every 1.5s to prevent worker rate limits
+    local isFirstRun = true
+
+    print("[BlastSync] Listener active and polling Firebase...")
+
+    while task.wait(1.5) do
         local success, data = pcall(function() return FirebaseGet("Players") end)
+        
         if success and type(data) == "table" then
             for plrName, plrData in pairs(data) do
+                -- Only check other players who sent a BlastSignal
                 if plrName ~= localPlayer.Name and plrData.BlastSignal then
-                    if lastSignals[plrName] ~= plrData.BlastSignal then
-                        lastSignals[plrName] = plrData.BlastSignal
-                        
-                        -- Trigger the visual for this specific player
-                        local targetPlr = Players:FindFirstChild(plrName)
-                        if targetPlr and targetPlr.Character then
-                            local targetPartnerChar = nil
+                    local signalTime = tonumber(plrData.BlastSignal) or 0
+                    
+                    -- On initial script load, store existing signals so old ones don't trigger
+                    if isFirstRun then
+                        lastSignals[plrName] = signalTime
+                    else
+                        -- Check if a NEW signal came in
+                        if signalTime > 0 and lastSignals[plrName] ~= signalTime then
+                            lastSignals[plrName] = signalTime
                             
-                            -- Attempt to ignore their sync partner from collisions if they have one
-                            if plrData.SyncPartner and plrData.SyncPartner ~= "" and plrData.SyncPartner ~= "[BOT]" then
-                                local p = Players:FindFirstChild(plrData.SyncPartner)
-                                if p then targetPartnerChar = p.Character end
+                            -- Only render if the signal is fresh (sent within the last 10 seconds)
+                            local timeDiff = workspace:GetServerTimeNow() - signalTime
+                            if timeDiff <= 10 then
+                                print("[BlastSync] New blast signal detected from:", plrName)
+                                
+                                local targetPlr = Players:FindFirstChild(plrName)
+                                if targetPlr and targetPlr.Character then
+                                    local targetPartnerChar = nil
+                                    
+                                    if plrData.SyncPartner and plrData.SyncPartner ~= "" and plrData.SyncPartner ~= "[BOT]" then
+                                        local p = Players:FindFirstChild(plrData.SyncPartner)
+                                        if p then targetPartnerChar = p.Character end
+                                    end
+                                    
+                                    print("[BlastSync] Rendering projectile model for:", plrName)
+                                    RenderBlastVisuals(targetPlr.Character, targetPartnerChar)
+                                else
+                                    warn("[BlastSync] Found signal, but player/character model wasn't found in game:", plrName)
+                                end
+                            else
+                                print("[BlastSync] Ignored outdated signal from:", plrName)
                             end
-                            
-                            RenderBlastVisuals(targetPlr.Character, targetPartnerChar)
                         end
                     end
                 end
             end
+            isFirstRun = false
+        elseif not success then
+            warn("[BlastSync] Failed to fetch data from Firebase. Check HTTP permissions or URL.")
         end
     end
 end)
