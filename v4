@@ -2283,6 +2283,7 @@ end
 SendBtn.MouseButton1Click:Connect(SendChatMessage)
 ChatInput.FocusLost:Connect(function(enter) if enter then SendChatMessage() end end)
 
+local lastBlastTimes = {}
 -- Global Blast Replication Poller
 task.spawn(function()
     while true do
