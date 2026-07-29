@@ -1382,6 +1382,371 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 pcall(function() ScreenGui.Parent = CoreGui end)
 if not ScreenGui.Parent then ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui") end
 
+do
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+local activeAnimSpeedOverride = nil
+
+local GITHUB_URL = "https://github.com/Fe-ProjectR/Balls/raw/refs/heads/main/CumAssets.rbxm"
+local LOCAL_FILE_NAME = "CumAssets.rbxm"
+
+local function loadGitHubAssets()
+    local existing = Workspace:FindFirstChild("BlastAssets") or Workspace:FindFirstChild("CumAssets")
+    if existing then return existing end
+
+    local success, result = pcall(function()
+        if not (writefile and getcustomasset) then
+            return nil
+        end
+
+        local fileContent = game:HttpGet(GITHUB_URL)
+        writefile(LOCAL_FILE_NAME, fileContent)
+
+        local assetUri = getcustomasset(LOCAL_FILE_NAME)
+        local objects = game:GetObjects(assetUri)
+
+        if objects and objects[1] then
+            local container = objects[1]
+            container.Name = "BlastAssets"
+
+            for _, desc in ipairs(container:GetDescendants()) do
+                if desc:IsA("BasePart") then
+                    desc.Anchored = true
+                end
+            end
+
+            container.Parent = Workspace
+            return container
+        end
+    end)
+
+    if success and result then
+        return result
+    end
+
+    return nil
+end
+
+local AssetFolder = loadGitHubAssets()
+
+local cumshots = {}
+local cumgravity = 60
+
+local function fireProjectile(cframe, vel, ignore_list)
+    local cumshotBase = (AssetFolder and AssetFolder:FindFirstChild("cumshot", true)) 
+        or Workspace:FindFirstChild("cumshot", true)
+        
+    if not cumshotBase then
+        return
+    end
+    
+    local cum = cumshotBase:Clone()
+    local points = {}
+    local t0 = 0
+    local extravel = Vector3.zero
+
+    cum:ScaleTo(0.05)
+
+    local sphere = cum:FindFirstChild("Sphere")
+    if not sphere then return end
+    
+    sphere.CFrame = cframe * CFrame.Angles(math.rad(90), 0, 0)
+    sphere.Anchored = true
+    sphere.CanCollide = false
+    sphere.CanQuery = false
+    sphere.CanTouch = false
+    sphere.Massless = true
+
+    for i = 1, 8 do
+        local v = sphere:FindFirstChild("Bone.00" .. i)
+        if v then
+            points[#points + 1] = {v, 0, t0, v.WorldPosition, vel + extravel, false}
+            t0 += i % 2 == 0 and 1 / 60 or 0
+            vel *= 0.95
+            extravel = Vector3.zero
+            v.Position = Vector3.zero
+        end
+    end
+    local mainBone = sphere:FindFirstChild("Bone")
+    if mainBone then
+        points[#points + 1] = {mainBone, 0, t0, mainBone.WorldPosition, vel + extravel, false}
+        mainBone.Position = Vector3.zero
+    end
+    
+    cum.Parent = Workspace
+    sphere.Transparency = 0
+    
+    local cm_ignore = RaycastParams.new()
+    cm_ignore.FilterDescendantsInstances = ignore_list or {}
+    cm_ignore.RespectCanCollide = true
+
+    cumshots[#cumshots + 1] = {
+        cum = cum,
+        mainpart = sphere,
+        life = 4,
+        points = points,
+        ignore = cm_ignore,
+    }
+end
+
+RunService.RenderStepped:Connect(function(dt)
+    local j = 1
+    for i = 1, #cumshots do
+        local v = cumshots[i]
+        cumshots[i] = nil
+        if not v or not v.cum or not v.cum.Parent then
+            continue
+        end
+
+        v.life -= dt
+        if v.life <= 0 then
+            if v.cum and not v.fading then
+                v.fading = true
+                TweenService:Create(v.mainpart, TweenInfo.new(4), {Transparency = 1}):Play()
+                task.delay(4, function() pcall(function() v.cum:Destroy() end) end)
+            end
+        end
+
+        local lastpos
+        for x = 1, #v.points do
+            local y = v.points[x]
+            if y[2] >= y[3] then
+                if not y[6] or not y[6].Parent then
+                    y[6] = nil
+                    local newvel = y[5] - (Vector3.yAxis * cumgravity * dt)
+                    local dtvel = (newvel + y[5]) * dt / 2
+                    y[5] = newvel
+                    local results = Workspace:Raycast(y[1].WorldPosition, dtvel, v.ignore)
+                    if results then
+                        if not v.hit then
+                            v.hit = results.Instance
+                            local weld = Instance.new('WeldConstraint')
+                            weld.Part0 = v.mainpart
+                            weld.Part1 = results.Instance
+                            weld.Parent = v.mainpart
+                            v.mainpart.Anchored = false
+                        end
+                        y[6] = results.Instance
+                        y[1].WorldCFrame = CFrame.new(results.Position, results.Position + results.Normal)
+                    else
+                        y[1].WorldPosition += dtvel
+                    end
+                end
+            else
+                y[2] += dt
+            end
+
+            if lastpos then
+                y[1].Transform = CFrame.fromOrientation(math.pi / 2, 0, 0)
+                y[1].WorldCFrame = CFrame.new(lastpos, y[1].WorldPosition) + (y[1].WorldPosition - lastpos)
+            elseif y[1].WorldPosition.X ~= y[4].X 
+                and y[1].WorldPosition.Y ~= y[4].Y 
+                and y[1].WorldPosition.Z ~= y[4].Z 
+            then
+                y[1].Transform = CFrame.fromOrientation(0, math.pi, 0)
+                if typeof(y[4]) == 'CFrame' then
+                    y[1].WorldCFrame = y[4]
+                else
+                    y[1].WorldCFrame = CFrame.new(y[4], y[1].WorldPosition) + (y[1].WorldPosition - y[4])
+                end
+            end
+
+            if y[6] then
+                if not y[7] then
+                    y[7] = y[6].CFrame:ToObjectSpace(y[1].WorldCFrame)
+                end
+                y[1].WorldCFrame = y[6].CFrame * y[7]
+            end 
+
+            y[4] = y[1].WorldPosition
+            lastpos = y[4]
+        end
+
+        cumshots[j] = v
+        j += 1
+    end
+end)
+
+local function getPartner()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+
+    for _, desc in ipairs(char:GetDescendants()) do
+        if desc:IsA("WeldConstraint") or desc:IsA("Weld") or desc:IsA("Motor6D") then
+            local p0, p1 = desc.Part0, desc.Part1
+            if p0 and p1 then
+                local otherPart = (p0:IsDescendantOf(char) and p1) or (p1:IsDescendantOf(char) and p0)
+                if otherPart then
+                    local otherChar = otherPart:FindFirstChildOfClass("Humanoid") and otherPart or otherPart.Parent
+                    if otherChar and otherChar:IsA("Model") and otherChar ~= char then
+                        return otherChar
+                    end
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function forceSetAnimSpeed(character, speedMultiplier)
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
+    
+    local tracks = animator:GetPlayingAnimationTracks()
+    for _, track in ipairs(tracks) do
+        track:AdjustSpeed(speedMultiplier)
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if activeAnimSpeedOverride ~= nil then
+        local char = LocalPlayer.Character
+        local partnerChar = getPartner()
+
+        if char then forceSetAnimSpeed(char, activeAnimSpeedOverride) end
+        if partnerChar then forceSetAnimSpeed(partnerChar, activeAnimSpeedOverride) end
+    end
+end)
+
+local isOnCooldown = false
+
+local function triggerBlast()
+    if isOnCooldown then return end
+    
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    isOnCooldown = true
+    task.delay(5, function()
+        isOnCooldown = false
+    end)
+
+    local partnerChar = getPartner()
+
+    activeAnimSpeedOverride = 2.5
+    
+    if currentTrack then currentTrack.Speed = 2.5 end
+    if partnerTrack then partnerTrack.Speed = 2.5 end
+    if soloEmoteTrack then soloEmoteTrack.Speed = 2.5 end
+
+    local originalFOV = Camera.FieldOfView
+    TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = originalFOV - 14}):Play()
+
+    task.wait(3)
+
+    activeAnimSpeedOverride = 0
+    
+    if currentTrack then currentTrack.Speed = 0 end
+    if partnerTrack then partnerTrack.Speed = 0 end
+    if soloEmoteTrack then soloEmoteTrack.Speed = 0 end
+    
+    task.wait(0.2)
+
+    local purrModel = char:FindFirstChild("Purr", true)
+    local particlePart = purrModel and purrModel:FindFirstChild("Particle1", true) 
+        or char:FindFirstChild("Particle1", true)
+
+    local speed = 25
+    local spreadAngles = {-12, 0, 12}
+
+    for _, angle in ipairs(spreadAngles) do
+        local basePos, baseLookVector
+
+        if particlePart then
+            basePos = particlePart.CFrame.Position + (particlePart.CFrame.UpVector * (particlePart.Size.Y / 2))
+            baseLookVector = particlePart.CFrame.UpVector
+        else
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then break end
+            basePos = root.CFrame.Position + Vector3.new(0, -0.5, 0)
+            baseLookVector = Camera and Camera.CFrame.LookVector or root.CFrame.LookVector
+        end
+
+        local fannedCFrame = CFrame.lookAt(basePos, basePos + baseLookVector) * CFrame.Angles(0, math.rad(angle), 0)
+        local velocity = fannedCFrame.LookVector * speed
+
+        if not particlePart then
+            velocity = velocity + Vector3.new(0, 7, 0)
+        end
+
+        fireProjectile(fannedCFrame, velocity, {char, partnerChar})
+        task.wait(0.2)
+    end
+
+    task.wait(1)
+
+    TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = originalFOV}):Play()
+    
+    activeAnimSpeedOverride = nil
+    forceSetAnimSpeed(char, 1)
+    if partnerChar then forceSetAnimSpeed(partnerChar, 1) end
+    
+    if currentTrack then currentTrack.Speed = currentAnimSpeed end
+    if partnerTrack then partnerTrack.Speed = currentAnimSpeed end
+    if soloEmoteTrack then soloEmoteTrack.Speed = currentAnimSpeed end
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.H then
+        triggerBlast()
+    end
+end)
+
+local function createBlastUI()
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+    if not playerGui then return end
+    
+    local oldGui = playerGui:FindFirstChild("BlastMobileGui")
+    if oldGui then oldGui:Destroy() end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "BlastMobileGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent = playerGui
+
+    local button = Instance.new("TextButton")
+    button.Name = "BlastButton"
+    button.Size = UDim2.new(0, 140, 0, 44)
+    button.Position = UDim2.new(0.5, -70, 1, -130)
+    button.BackgroundColor3 = Color3.fromRGB(18, 12, 28)
+    button.BackgroundTransparency = 0.15
+    button.TextColor3 = Color3.fromRGB(240, 230, 255)
+    button.Text = "BLAST"
+    button.TextSize = 16
+    button.Font = Enum.Font.SourceSansLight
+    button.Visible = false
+    button.ZIndex = 2
+    button.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = button
+
+    button.MouseButton1Click:Connect(function()
+        triggerBlast()
+    end)
+
+    RunService.Heartbeat:Connect(function()
+        local isSyncing = getPartner() ~= nil
+        button.Visible = isSyncing
+    end)
+end
+
+createBlastUI()
+end
+
 local ControlNotifFrame = Instance.new("Frame", ScreenGui)
 ControlNotifFrame.Size = UDim2.new(0, 260, 0, 50)
 ControlNotifFrame.Position = UDim2.new(0.5, -130, 0, 80)
@@ -1893,6 +2258,37 @@ end
 
 SendBtn.MouseButton1Click:Connect(SendChatMessage)
 ChatInput.FocusLost:Connect(function(enter) if enter then SendChatMessage() end end)
+
+-- Global Blast Replication Poller
+task.spawn(function()
+    while true do
+        task.wait(1.5) -- Fast check for blast signals
+        local playersData = FirebaseGet("Players")
+        if playersData then
+            for pName, pData in pairs(playersData) do
+                if pData.JobId == game.JobId and pName ~= localPlayer.Name then
+                    if pData.BlastSignal and (not lastBlastTimes[pName] or pData.BlastSignal > lastBlastTimes[pName]) then
+                        lastBlastTimes[pName] = pData.BlastSignal
+                        
+                        -- Trigger the effect on their character
+                        local targetPlr = Players:FindFirstChild(pName)
+                        if targetPlr and targetPlr.Character then
+                            PlayBlastEffect(targetPlr.Character)
+                        end
+                        
+                        -- Also trigger on their bot if they have one active
+                        if pData.Bot and pData.Bot.Active == true then
+                            local botChar = Workspace:FindFirstChild("ROCONS_BOT_" .. pName)
+                            if botChar then
+                                PlayBlastEffect(botChar)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
 
 local processedMsgKeys = {}
 local scriptStartTime = workspace:GetServerTimeNow()
