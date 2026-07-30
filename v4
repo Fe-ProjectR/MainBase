@@ -1382,6 +1382,7 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 pcall(function() ScreenGui.Parent = CoreGui end)
 if not ScreenGui.Parent then ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui") end
 
+do
 --start
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -1746,6 +1747,7 @@ local function createBlastUI()
 end
 
 createBlastUI()
+end
 --end
 local ControlNotifFrame = Instance.new("Frame", ScreenGui)
 ControlNotifFrame.Size = UDim2.new(0, 260, 0, 50)
