@@ -1634,7 +1634,6 @@ local function getPartnerOf(targetChar)
     return nil
 end
 
--- Unified Blast Sequence for Local and Replicated Players
 local function RunBlastSequence(character, isLocal)
     if not character then return end
 
