@@ -1393,7 +1393,8 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
-local activeAnimSpeedOverride = nil
+local activeSpeedOverrides = {}
+local activeSequences = {}
 
 local GITHUB_URL = "https://github.com/Fe-ProjectR/Balls/raw/refs/heads/main/CumAssets.rbxm"
 local LOCAL_FILE_NAME = "CumAssets.rbxm"
@@ -1590,12 +1591,6 @@ local function getPartner()
     return nil
 end
 
--- Add this near the top of your script or link it to your existing gender variable.
-local MY_GENDER = "M" -- Change to "F" if your player is female.
-
-local activeAnimSpeeds = {}
-local activeBlasts = {}
-
 local function forceSetAnimSpeed(character, speedMultiplier)
     if not character then return end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -1608,39 +1603,58 @@ local function forceSetAnimSpeed(character, speedMultiplier)
     end
 end
 
+-- Global RenderStepped to enforce animation speeds for ALL blasting characters
 RunService.RenderStepped:Connect(function()
-    -- This now ensures animation speeds are forced for ANY character currently blasting, fixing replication
-    for char, speed in pairs(activeAnimSpeeds) do
-        forceSetAnimSpeed(char, speed)
+    for char, speed in pairs(activeSpeedOverrides) do
+        if char and char.Parent then
+            forceSetAnimSpeed(char, speed)
+        else
+            activeSpeedOverrides[char] = nil -- Clean up if character is destroyed
+        end
     end
 end)
 
 -- Unified Blast Sequence for Local and Replicated Players
 local function RunBlastSequence(character, isLocal)
-    if not character or activeBlasts[character] then return end
-    activeBlasts[character] = true -- Debounce to prevent 6-projectile double firing
+    if not character then return end
 
-    -- 1. Speed Up Animation globally
-    activeAnimSpeeds[character] = 2.5
+    -- Prevents double-firing bug (3 vs 6 projectiles)
+    if activeSequences[character] then return end
+    activeSequences[character] = true
+
+    -- 1. Speed Up Animation globally for everyone viewing this character
+    activeSpeedOverrides[character] = 2.5
+    forceSetAnimSpeed(character, 2.5)
     
+    local originalFOV = Camera.FieldOfView
+
     if isLocal then
-        TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = 56}):Play()
+        if currentTrack then currentTrack.Speed = 2.5 end
+        if partnerTrack then partnerTrack.Speed = 2.5 end
+        if soloEmoteTrack then soloEmoteTrack.Speed = 2.5 end
+
+        TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = originalFOV - 14}):Play()
     end
 
     -- 2. Pause briefly while anim speeds up
     task.wait(3)
 
     -- 3. Revert Speed
-    activeAnimSpeeds[character] = nil
+    activeSpeedOverrides[character] = nil
     forceSetAnimSpeed(character, 1)
     
     if isLocal then
-        TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = 70}):Play()
+        if currentTrack then currentTrack.Speed = currentAnimSpeed or 1 end
+        if partnerTrack then partnerTrack.Speed = currentAnimSpeed or 1 end
+        if soloEmoteTrack then soloEmoteTrack.Speed = currentAnimSpeed or 1 end
+
+        -- Fixed zooming back out scoping issue
+        TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = originalFOV}):Play()
     end
 
     task.wait(0.2)
 
-    -- 4. Shoot Projectiles
+    -- 4. Shoot Projectile from Particle1 for everyone
     local purrModel = character:FindFirstChild("Purr", true)
     local particlePart = purrModel and purrModel:FindFirstChild("Particle1", true) 
         or character:FindFirstChild("Particle1", true)
@@ -1671,14 +1685,14 @@ local function RunBlastSequence(character, isLocal)
         fireProjectile(fannedCFrame, velocity, {character})
         task.wait(0.2)
     end
-    
-    activeBlasts[character] = nil
+
+    -- Clear debounce to allow character to fire again in the future
+    task.delay(1, function() activeSequences[character] = nil end)
 end
 
 local isOnCooldown = false
 
 local function triggerBlast()
-    if MY_GENDER == "F" then return end -- Female restriction
     if isOnCooldown then return end
     
     local char = LocalPlayer.Character
@@ -1687,9 +1701,11 @@ local function triggerBlast()
     isOnCooldown = true
     task.delay(5, function() isOnCooldown = false end)
 
-    -- Send signal to partner/others immediately
+    -- Send signal to partner/others immediately to start the sequence
     local triggerId = math.random(100000, 999999)
-    FirebasePatch("Players/" .. LocalPlayer.Name, { BlastTrigger = triggerId })
+    pcall(function()
+        FirebasePatch("Players/" .. LocalPlayer.Name, { BlastTrigger = triggerId })
+    end)
 
     -- Run it locally
     task.spawn(RunBlastSequence, char, true)
@@ -1697,9 +1713,12 @@ end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    -- Strictly bound to D only
+    
+    -- Only trigger if pressing D AND a sync partner/bot is active
     if input.KeyCode == Enum.KeyCode.D then
-        triggerBlast()
+        if getPartner() ~= nil then
+            triggerBlast()
+        end
     end
 end)
 
@@ -1735,13 +1754,14 @@ local function createBlastUI()
     corner.Parent = button
 
     button.MouseButton1Click:Connect(function()
-        triggerBlast()
+        if getPartner() ~= nil then
+            triggerBlast()
+        end
     end)
 
     RunService.Heartbeat:Connect(function()
         local isSyncing = getPartner() ~= nil
-        -- Button only shows if syncing AND not female
-        button.Visible = isSyncing and MY_GENDER ~= "F"
+        button.Visible = isSyncing
     end)
 end
 
@@ -1752,10 +1772,13 @@ local lastBlastSignals = {}
 task.spawn(function()
     while true do
         task.wait(1) 
-        local playersData = FirebaseGet("Players")
-        if playersData then
+        local success, playersData = pcall(function()
+            return FirebaseGet("Players")
+        end)
+        
+        if success and type(playersData) == "table" then
             for pName, pData in pairs(playersData) do
-                if pData.JobId == game.JobId and pName ~= LocalPlayer.Name then
+                if type(pData) == "table" and pData.JobId == game.JobId and pName ~= LocalPlayer.Name then
                     if pData.BlastTrigger and pData.BlastTrigger ~= lastBlastSignals[pName] then
                         lastBlastSignals[pName] = pData.BlastTrigger
                         
