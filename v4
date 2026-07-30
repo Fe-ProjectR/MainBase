@@ -1614,6 +1614,26 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+local function getPartnerOf(targetChar)
+    if not targetChar then return nil end
+    local hrp = targetChar:FindFirstChild("HumanoidRootPart") or targetChar:FindFirstChild("Torso")
+    if hrp then
+        for _, joint in ipairs(hrp:GetJoints()) do
+            local p0, p1 = joint.Part0, joint.Part1
+            if p0 and p1 then
+                local otherPart = (p0:IsDescendantOf(targetChar) and p1) or (p1:IsDescendantOf(targetChar) and p0)
+                if otherPart then
+                    local otherChar = otherPart:FindFirstChildOfClass("Humanoid") and otherPart or otherPart.Parent
+                    if otherChar and otherChar:IsA("Model") and otherChar ~= targetChar then
+                        return otherChar
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
 -- Unified Blast Sequence for Local and Replicated Players
 local function RunBlastSequence(character, isLocal)
     if not character then return end
@@ -1622,9 +1642,17 @@ local function RunBlastSequence(character, isLocal)
     if activeSequences[character] then return end
     activeSequences[character] = true
 
-    -- 1. Speed Up Animation globally for everyone viewing this character
+    -- Find the partner attached to the blasting character
+    local partnerChar = getPartnerOf(character)
+
+    -- 1. Speed Up Animation globally for everyone viewing this character (and their partner)
     activeSpeedOverrides[character] = 2.5
     forceSetAnimSpeed(character, 2.5)
+    
+    if partnerChar then
+        activeSpeedOverrides[partnerChar] = 2.5
+        forceSetAnimSpeed(partnerChar, 2.5)
+    end
     
     local originalFOV = Camera.FieldOfView
 
@@ -1639,9 +1667,14 @@ local function RunBlastSequence(character, isLocal)
     -- 2. Pause briefly while anim speeds up
     task.wait(3)
 
-    -- 3. Revert Speed
+    -- 3. Revert Speed for both
     activeSpeedOverrides[character] = nil
     forceSetAnimSpeed(character, 1)
+    
+    if partnerChar then
+        activeSpeedOverrides[partnerChar] = nil
+        forceSetAnimSpeed(partnerChar, 1)
+    end
     
     if isLocal then
         if currentTrack then currentTrack.Speed = currentAnimSpeed or 1 end
@@ -1682,7 +1715,7 @@ local function RunBlastSequence(character, isLocal)
             velocity = velocity + Vector3.new(0, 7, 0)
         end
 
-        fireProjectile(fannedCFrame, velocity, {character})
+        fireProjectile(fannedCFrame, velocity, {character, partnerChar})
         task.wait(0.2)
     end
 
@@ -1714,9 +1747,9 @@ end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
-    -- Only trigger if pressing D AND a sync partner/bot is active
+    -- Only trigger if pressing D AND a sync partner/bot is active AND role is "D"
     if input.KeyCode == Enum.KeyCode.D then
-        if getPartner() ~= nil then
+        if getPartner() ~= nil and myRole == "D" then
             triggerBlast()
         end
     end
@@ -1760,8 +1793,9 @@ local function createBlastUI()
     end)
 
     RunService.Heartbeat:Connect(function()
+        -- Button is only visible if synced AND playing the "D" role
         local isSyncing = getPartner() ~= nil
-        button.Visible = isSyncing
+        button.Visible = (isSyncing and myRole == "D")
     end)
 end
 
