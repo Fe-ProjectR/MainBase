@@ -1590,6 +1590,12 @@ local function getPartner()
     return nil
 end
 
+-- Add this near the top of your script or link it to your existing gender variable.
+local MY_GENDER = "M" -- Change to "F" if your player is female.
+
+local activeAnimSpeeds = {}
+local activeBlasts = {}
+
 local function forceSetAnimSpeed(character, speedMultiplier)
     if not character then return end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -1603,50 +1609,38 @@ local function forceSetAnimSpeed(character, speedMultiplier)
 end
 
 RunService.RenderStepped:Connect(function()
-    if activeAnimSpeedOverride ~= nil then
-        local char = LocalPlayer.Character
-        local partnerChar = getPartner()
-
-        if char then forceSetAnimSpeed(char, activeAnimSpeedOverride) end
-        if partnerChar then forceSetAnimSpeed(partnerChar, activeAnimSpeedOverride) end
+    -- This now ensures animation speeds are forced for ANY character currently blasting, fixing replication
+    for char, speed in pairs(activeAnimSpeeds) do
+        forceSetAnimSpeed(char, speed)
     end
 end)
 
 -- Unified Blast Sequence for Local and Replicated Players
 local function RunBlastSequence(character, isLocal)
-    if not character then return end
+    if not character or activeBlasts[character] then return end
+    activeBlasts[character] = true -- Debounce to prevent 6-projectile double firing
 
     -- 1. Speed Up Animation globally
-    forceSetAnimSpeed(character, 2.5)
+    activeAnimSpeeds[character] = 2.5
     
     if isLocal then
-        activeAnimSpeedOverride = 2.5
-        if currentTrack then currentTrack.Speed = 2.5 end
-        if partnerTrack then partnerTrack.Speed = 2.5 end
-        if soloEmoteTrack then soloEmoteTrack.Speed = 2.5 end
-
-        local originalFOV = Camera.FieldOfView
-        TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = originalFOV - 14}):Play()
+        TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = 56}):Play()
     end
 
     -- 2. Pause briefly while anim speeds up
     task.wait(3)
 
     -- 3. Revert Speed
+    activeAnimSpeeds[character] = nil
     forceSetAnimSpeed(character, 1)
     
     if isLocal then
-        activeAnimSpeedOverride = nil
-        if currentTrack then currentTrack.Speed = currentAnimSpeed end
-        if partnerTrack then partnerTrack.Speed = currentAnimSpeed end
-        if soloEmoteTrack then soloEmoteTrack.Speed = currentAnimSpeed end
-
-        TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = originalFOV}):Play()
+        TweenService:Create(Camera, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {FieldOfView = 70}):Play()
     end
 
     task.wait(0.2)
 
-    -- 4. Shoot Projectile from Particle1 for everyone
+    -- 4. Shoot Projectiles
     local purrModel = character:FindFirstChild("Purr", true)
     local particlePart = purrModel and purrModel:FindFirstChild("Particle1", true) 
         or character:FindFirstChild("Particle1", true)
@@ -1677,11 +1671,14 @@ local function RunBlastSequence(character, isLocal)
         fireProjectile(fannedCFrame, velocity, {character})
         task.wait(0.2)
     end
+    
+    activeBlasts[character] = nil
 end
 
 local isOnCooldown = false
 
 local function triggerBlast()
+    if MY_GENDER == "F" then return end -- Female restriction
     if isOnCooldown then return end
     
     local char = LocalPlayer.Character
@@ -1690,9 +1687,9 @@ local function triggerBlast()
     isOnCooldown = true
     task.delay(5, function() isOnCooldown = false end)
 
-    -- Send signal to partner/others immediately to start the sequence
+    -- Send signal to partner/others immediately
     local triggerId = math.random(100000, 999999)
-    FirebasePatch("Players/" .. localPlayer.Name, { BlastTrigger = triggerId })
+    FirebasePatch("Players/" .. LocalPlayer.Name, { BlastTrigger = triggerId })
 
     -- Run it locally
     task.spawn(RunBlastSequence, char, true)
@@ -1700,7 +1697,8 @@ end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.H then
+    -- Strictly bound to D only
+    if input.KeyCode == Enum.KeyCode.D then
         triggerBlast()
     end
 end)
@@ -1725,7 +1723,7 @@ local function createBlastUI()
     button.BackgroundColor3 = Color3.fromRGB(18, 12, 28)
     button.BackgroundTransparency = 0.15
     button.TextColor3 = Color3.fromRGB(240, 230, 255)
-    button.Text = "CUM (H)"
+    button.Text = "CUM (D)"
     button.TextSize = 16
     button.Font = Enum.Font.SourceSansLight
     button.Visible = false
@@ -1742,13 +1740,44 @@ local function createBlastUI()
 
     RunService.Heartbeat:Connect(function()
         local isSyncing = getPartner() ~= nil
-        button.Visible = isSyncing
+        -- Button only shows if syncing AND not female
+        button.Visible = isSyncing and MY_GENDER ~= "F"
     end)
 end
 
 createBlastUI()
-end
+
+-- Global Replication Poller
+local lastBlastSignals = {}
+task.spawn(function()
+    while true do
+        task.wait(1) 
+        local playersData = FirebaseGet("Players")
+        if playersData then
+            for pName, pData in pairs(playersData) do
+                if pData.JobId == game.JobId and pName ~= LocalPlayer.Name then
+                    if pData.BlastTrigger and pData.BlastTrigger ~= lastBlastSignals[pName] then
+                        lastBlastSignals[pName] = pData.BlastTrigger
+                        
+                        local targetPlr = Players:FindFirstChild(pName)
+                        if targetPlr and targetPlr.Character then
+                            task.spawn(RunBlastSequence, targetPlr.Character, false)
+                        end
+                        
+                        if pData.Bot and pData.Bot.Active == true then
+                            local botChar = Workspace:FindFirstChild("ROCONS_BOT_" .. pName)
+                            if botChar then
+                                task.spawn(RunBlastSequence, botChar, false)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
 --end
+end
 local ControlNotifFrame = Instance.new("Frame", ScreenGui)
 ControlNotifFrame.Size = UDim2.new(0, 260, 0, 50)
 ControlNotifFrame.Position = UDim2.new(0.5, -130, 0, 80)
